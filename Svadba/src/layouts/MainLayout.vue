@@ -21,7 +21,7 @@
           <q-card-section>
             <div class="text-center">
               <q-icon name="photo_camera" size="40px" class="text-pink-6" />
-              <h2 class="text-h6 text-bold q-mt-sm">Share Your Photos</h2>
+              <h2 class="text-h6 text-bold q-mt-sm">Share Your Photosssss</h2>
               <p class="text-body2 text-grey-7 q-mt-xs">
                 Upload the moments you captured so we can keep this day alive forever 💖
               </p>
