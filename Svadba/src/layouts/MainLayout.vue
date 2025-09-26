@@ -31,8 +31,8 @@
           <q-separator spaced />
 
           <q-card-section>
-            <q-uploader label="Tap to select wedding photos" :url="uploadUrl" accept="image/*" auto-upload
-              @uploaded="onUploaded" color="pink-6" text-color="white" flat bordered class="wedding-uploader" />
+            <q-uploader ref="uploader" label="Tap to select wedding photos" accept="image/*" :auto-upload="false"
+              @added="generatePresignedUrls" color="pink-6" text-color="white" flat bordered class="wedding-uploader" />
           </q-card-section>
         </q-card>
 
@@ -65,27 +65,62 @@
   </q-layout>
 </template>
 
-<script>
-import { defineComponent } from "vue";
+<script setup>
+import { ref } from "vue";
+import { useQuasar } from "quasar";
 
-export default defineComponent({
-  name: "WeddingUploadPage",
-  data() {
-    return {
-      uploadUrl: "/upload", // your backend endpoint
-      successDialog: false
-    };
-  },
-  methods: {
-    onUploaded() {
-      this.successDialog = true;
-    }
+const $q = useQuasar();
+const successDialog = ref(false);
+const uploaderRef = ref(null);
+
+async function generatePresignedUrls(files) {
+  if (!files.length) return;
+
+  try {
+    // 1️⃣ Collect file names to send to backend
+    const fileNames = files.map(f => f.name);
+
+    // 2️⃣ Request presigned URLs from Flask backend
+    const res = await fetch("http://127.0.0.1:5000/generate_urls", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filenames: fileNames, content_type: files[0].type })
+    });
+
+    if (!res.ok) throw new Error("Failed to get presigned URLs");
+    const data = await res.json();
+
+    // 3️⃣ Upload each file to S3
+    await Promise.all(
+      files.map(async (file, idx) => {
+        const presignedUrl = data.urls[idx]?.upload_url;
+        if (!presignedUrl) throw new Error(`No presigned URL for ${file.name}`);
+
+        await fetch(presignedUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": file.type,                // must match signed ContentType
+            "x-amz-server-side-encryption": "AES256"  // must match signed header
+          },
+          body: file
+        });
+
+        $q.notify({ type: "positive", message: `${file.name} uploaded successfully!` });
+      })
+    );
+
+    // 4️⃣ Show success dialog after all uploads
+    successDialog.value = true;
+    uploaderRef.value.reset();
+
+  } catch (err) {
+    console.error(err);
+    $q.notify({ type: "negative", message: "Upload failed. Please try again." });
   }
-});
+}
 </script>
 
 <style scoped>
-/* Background hero */
 .wedding-page {
   min-height: 100vh;
   background: linear-gradient(to bottom, #fff7f9, #fff0f5);
