@@ -81,7 +81,7 @@ async function generatePresignedUrls(files) {
     const fileNames = files.map(f => f.name);
 
     // 2️⃣ Request presigned URLs from Flask backend
-    const res = await fetch("http://127.0.0.1:5000/generate_urls", {
+    const res = await fetch("https://mjvwsyxyzc.execute-api.eu-north-1.amazonaws.com/default/svadbaLambdaFunction", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ filenames: fileNames, content_type: files[0].type })
