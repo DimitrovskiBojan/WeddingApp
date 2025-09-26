@@ -16,7 +16,7 @@
           </div>
         </div>
 
-        <!-- Upload Instructions -->
+        <!-- Upload Card -->
         <q-card flat bordered class="upload-card q-mt-xl q-pa-md">
           <q-card-section>
             <div class="text-center">
@@ -32,7 +32,7 @@
 
           <q-card-section>
             <q-uploader ref="uploader" label="Tap to select wedding photos" accept="image/*" :auto-upload="false"
-              @added="generatePresignedUrls" color="pink-6" text-color="white" flat bordered class="wedding-uploader" />
+              @added="handleFiles" color="pink-6" text-color="white" flat bordered class="wedding-uploader" />
           </q-card-section>
         </q-card>
 
@@ -73,43 +73,50 @@ const $q = useQuasar();
 const successDialog = ref(false);
 const uploaderRef = ref(null);
 
-async function generatePresignedUrls(files) {
+// Handle files added to the uploader
+async function handleFiles(files) {
   if (!files.length) return;
 
   try {
-    // 1️⃣ Collect file names to send to backend
-    const fileNames = files.map(f => f.name);
+    // Ensure these are actual File objects
+    const fileObjects = files.map(f => f.__file || f); // f.__file if coming from q-uploader
 
-    // 2️⃣ Request presigned URLs from Flask backend
-    const res = await fetch("https://mjvwsyxyzc.execute-api.eu-north-1.amazonaws.com/default/svadbaLambdaFunction", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filenames: fileNames, content_type: files[0].type })
-    });
+    // 1️⃣ Collect file names
+    const fileNames = fileObjects.map(f => f.name);
+
+    // 2️⃣ Request presigned URLs from Lambda
+    const res = await fetch(
+      "https://mjvwsyxyzc.execute-api.eu-north-1.amazonaws.com/default/svadbaLambdaFunction",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filenames: fileNames, content_type: fileObjects[0].type })
+      }
+    );
 
     if (!res.ok) throw new Error("Failed to get presigned URLs");
     const data = await res.json();
 
     // 3️⃣ Upload each file to S3
     await Promise.all(
-      files.map(async (file, idx) => {
+      fileObjects.map(async (file, idx) => {
         const presignedUrl = data.urls[idx]?.upload_url;
         if (!presignedUrl) throw new Error(`No presigned URL for ${file.name}`);
 
         await fetch(presignedUrl, {
           method: "PUT",
           headers: {
-            "Content-Type": file.type,                // must match signed ContentType
-            "x-amz-server-side-encryption": "AES256"  // must match signed header
+            "Content-Type": file.type,
+            "x-amz-server-side-encryption": "AES256"
           },
-          body: file
+          body: file // <-- actual File object
         });
 
         $q.notify({ type: "positive", message: `${file.name} uploaded successfully!` });
       })
     );
 
-    // 4️⃣ Show success dialog after all uploads
+    // 4️⃣ Show success dialog
     successDialog.value = true;
     uploaderRef.value.reset();
 
@@ -133,7 +140,6 @@ async function generatePresignedUrls(files) {
 .wedding-title {
   font-family: "Great Vibes", cursive;
   color: #b8860b;
-  /* gold tone */
 }
 
 .upload-card {
