@@ -21,7 +21,7 @@
           <q-card-section>
             <div class="text-center">
               <q-icon name="photo_camera" size="40px" class="text-pink-6" />
-              <h2 class="text-h6 text-bold q-mt-sm">Share Your Photosssss</h2>
+              <h2 class="text-h6 text-bold q-mt-sm">Share Your Photos</h2>
               <p class="text-body2 text-grey-7 q-mt-xs">
                 Upload the moments you captured so we can keep this day alive forever 💖
               </p>
@@ -35,12 +35,6 @@
               @added="handleFiles" color="pink-6" text-color="white" flat bordered class="wedding-uploader" />
           </q-card-section>
         </q-card>
-
-        <!-- Debug log div -->
-        <div class="debug-log q-mt-md q-pa-sm bg-grey-2 text-grey-9"
-          style="width: 90%; max-width: 400px; white-space: pre-wrap;">
-          {{ debugLog }}
-        </div>
 
         <!-- Success Dialog -->
         <q-dialog v-model="successDialog">
@@ -78,26 +72,14 @@ import { useQuasar } from "quasar";
 const $q = useQuasar();
 const successDialog = ref(false);
 const uploaderRef = ref(null);
-const debugLog = ref(""); // reactive log variable
-
-// Helper to append log messages
-function log(message) {
-  console.log(message);
-  debugLog.value += message + "\n";
-}
 
 // Handle files added to the uploader
 async function handleFiles(files) {
-  log("Files added event triggered");
-  log(JSON.stringify(files));
-
   if (!files.length) return;
 
   try {
     // Ensure these are actual File objects
-    const fileObjects = files.map(f => f.__file || f);
-    log("Extracted File objects:");
-    fileObjects.forEach(f => log(`${f.name} (${f.size} bytes, type: ${f.type})`));
+    const fileObjects = files.map(f => f.__file || f); // f.__file if coming from q-uploader
 
     // 1️⃣ Collect file names
     const fileNames = fileObjects.map(f => f.name);
@@ -114,8 +96,6 @@ async function handleFiles(files) {
 
     if (!res.ok) throw new Error("Failed to get presigned URLs");
     const data = await res.json();
-    log("Received presigned URLs:");
-    log(JSON.stringify(data));
 
     // 3️⃣ Upload each file to S3
     await Promise.all(
@@ -123,17 +103,15 @@ async function handleFiles(files) {
         const presignedUrl = data.urls[idx]?.upload_url;
         if (!presignedUrl) throw new Error(`No presigned URL for ${file.name}`);
 
-        log(`Uploading ${file.name} to S3...`);
-        const uploadRes = await fetch(presignedUrl, {
+        await fetch(presignedUrl, {
           method: "PUT",
           headers: {
             "Content-Type": file.type,
             "x-amz-server-side-encryption": "AES256"
           },
-          body: file
+          body: file // <-- actual File object
         });
 
-        log(`${file.name} upload response status: ${uploadRes.status}`);
         $q.notify({ type: "positive", message: `${file.name} uploaded successfully!` });
       })
     );
@@ -143,7 +121,6 @@ async function handleFiles(files) {
     uploaderRef.value.reset();
 
   } catch (err) {
-    log("Error: " + err.message);
     console.error(err);
     $q.notify({ type: "negative", message: "Upload failed. Please try again." });
   }
@@ -178,13 +155,5 @@ async function handleFiles(files) {
 
 .text-gold {
   color: #c9a43f;
-}
-
-.debug-log {
-  font-family: monospace;
-  font-size: 0.85rem;
-  max-height: 300px;
-  overflow-y: auto;
-  border-radius: 8px;
 }
 </style>
