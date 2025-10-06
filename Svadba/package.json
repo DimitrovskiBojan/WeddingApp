@@ -1,8 +1,8 @@
 {
   "name": "svadba",
   "version": "0.0.1",
-  "description": "Aplikacija za svadbu",
-  "productName": "Svadba App",
+  "description": "Wedding gallery application",
+  "productName": "Wedding Gallery",
   "author": "Bojan Dimitrovski <bokibojann@gmail.com>",
   "type": "module",
   "private": true,
