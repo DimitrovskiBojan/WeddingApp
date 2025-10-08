@@ -9,10 +9,10 @@
             <q-icon name="favorite" size="40px" />
           </q-avatar>
           <h1 class="text-h4 text-bold text-gold q-mt-md wedding-title">
-            Valentina & Berk
+            Валентина & Берк
           </h1>
           <div class="text-subtitle2 text-grey-9 q-mt-xs">
-            💍 Wedding Memories – 2025
+            💍 Свадбени спомени – 2025
           </div>
         </div>
 
@@ -21,9 +21,9 @@
           <q-card-section>
             <div class="text-center">
               <q-icon name="photo_camera" size="40px" class="text-pink-6" />
-              <h2 class="text-h6 text-bold q-mt-sm">Share Your Photos</h2>
+              <h2 class="text-h6 text-bold q-mt-sm">Сподели слики</h2>
               <p class="text-body2 text-grey-7 q-mt-xs">
-                Upload the moments you captured so we can keep this day alive forever
+                Твоите слики се дел од нашата приказна. Сподели ги со нас, за да ги помниме засекогаш.
               </p>
             </div>
           </q-card-section>
@@ -32,7 +32,7 @@
 
           <!-- File Selector -->
           <q-card-section class="text-center">
-            <q-btn color="pink-6" text-color="white" label="Select Photos" icon="photo_camera" @click="selectFiles" />
+            <q-btn color="pink-6" text-color="white" label="Избери слики" icon="photo_camera" @click="selectFiles" />
             <input ref="fileInput" type="file" accept="image/*" multiple style="display: none" @change="previewFiles" />
           </q-card-section>
 
@@ -50,7 +50,7 @@
 
             <!-- Send Button -->
             <div class="text-center q-mt-md">
-              <q-btn color="pink-6" text-color="white" label="Send Photos" icon="send" @click="uploadFiles" />
+              <q-btn color="pink-6" text-color="white" label="Испрати слики" icon="send" @click="uploadFiles" />
             </div>
           </q-card-section>
         </q-card>
@@ -60,29 +60,37 @@
           <q-card class="q-pa-md text-center">
             <q-card-section>
               <q-icon name="check_circle" size="48px" class="text-green-6 q-mb-sm" />
-              <div class="text-h6 text-bold">Upload Successful 🎉</div>
+              <div class="text-h6 text-bold">Сликите се прикачени! 🎉</div>
               <p class="text-body2 text-grey-8 q-mt-xs">
-                Thank you for sharing your photos with Valentina & Berk’s album!
+                Ти благодариме што ги сподели твоите спомени со нас!
               </p>
             </q-card-section>
             <q-card-actions align="center">
-              <q-btn flat color="pink-6" label="Close" v-close-popup />
+              <q-btn flat color="pink-6" label="Затвори" v-close-popup />
             </q-card-actions>
           </q-card>
         </q-dialog>
 
-        <!-- 3 Bumping Hearts Spinner -->
+        <!-- Hearts Spinner + Progress Bar -->
         <div v-if="isUploading" class="overlay">
-          <div class="hearts-loader">
-            <div class="heart" v-for="n in 3" :key="n" :style="{ animationDelay: (n - 1) * 0.3 + 's' }"></div>
+          <div class="loader-container column items-center">
+            <div class="hearts-loader">
+              <div class="heart" v-for="n in 3" :key="n" :style="{ animationDelay: (n - 1) * 0.3 + 's' }"></div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress-container q-mt-md">
+              <div class="progress-bar" :style="{ width: uploadProgress + '%' }"></div>
+            </div>
+            <div class="text-caption text-pink-8 q-mt-xs">{{ Math.round(uploadProgress) }}%</div>
           </div>
         </div>
 
         <!-- Footer -->
         <div class="footer q-mt-xl text-center">
           <p class="text-caption text-grey-6">
-            With love, <br />
-            Valentina & Berk 💕
+            Со љубов, <br />
+            Валентина & Берк 💕
           </p>
         </div>
 
@@ -99,6 +107,7 @@ const fileInput = ref(null);
 const selectedFiles = ref([]);
 const previews = ref([]);
 const isUploading = ref(false);
+const uploadProgress = ref(0);
 
 // Open file picker
 function selectFiles() {
@@ -124,14 +133,15 @@ function removeImage(index) {
 // Upload only the first 20 images
 async function uploadFiles() {
   if (!selectedFiles.value.length) {
-    alert("Please select some photos first.");
+    alert("Ве молам, прво изберете некои слики.");
     return;
   }
 
   const filesToUpload = selectedFiles.value.slice(0, 20);
   const fileNames = filesToUpload.map(f => f.name);
 
-  isUploading.value = true; // show hearts spinner
+  isUploading.value = true;
+  uploadProgress.value = 0;
 
   try {
     const res = await fetch(
@@ -146,23 +156,28 @@ async function uploadFiles() {
       }
     );
 
-    if (!res.ok) throw new Error("Failed to get presigned URLs");
+    if (!res.ok) throw new Error("Неуспешно поврзување со серверот");
     const data = await res.json();
 
-    await Promise.all(
-      filesToUpload.map(async (file, idx) => {
-        const presignedUrl = data.urls[idx]?.upload_url;
-        if (!presignedUrl) throw new Error(`No presigned URL for ${file.name}`);
-        await fetch(presignedUrl, {
-          method: "PUT",
-          headers: {
-            "Content-Type": file.type,
-            "x-amz-server-side-encryption": "AES256",
-          },
-          body: file,
-        });
-      })
-    );
+    let uploadedCount = 0;
+
+    for (let idx = 0; idx < filesToUpload.length; idx++) {
+      const file = filesToUpload[idx];
+      const presignedUrl = data.urls[idx]?.upload_url;
+      if (!presignedUrl) throw new Error(`Нема URL за ${file.name}`);
+
+      await fetch(presignedUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": file.type,
+          "x-amz-server-side-encryption": "AES256",
+        },
+        body: file,
+      });
+
+      uploadedCount++;
+      uploadProgress.value = (uploadedCount / filesToUpload.length) * 100;
+    }
 
     successDialog.value = true;
     previews.value.forEach(url => URL.revokeObjectURL(url));
@@ -172,9 +187,10 @@ async function uploadFiles() {
 
   } catch (err) {
     console.error(err);
-    alert("Upload failed. Please try again.");
+    alert("Неуспешно прикачување. Обидете се повторно.");
   } finally {
     isUploading.value = false;
+    uploadProgress.value = 0;
   }
 }
 </script>
@@ -205,7 +221,6 @@ async function uploadFiles() {
   color: #c9a43f;
 }
 
-/* Remove button styling */
 .remove-btn {
   position: absolute;
   top: 4px;
@@ -216,7 +231,6 @@ async function uploadFiles() {
   z-index: 10;
 }
 
-/* Dim extra images beyond limit */
 .preview-img.dimmed {
   opacity: 0.4;
   filter: blur(1px);
@@ -233,44 +247,54 @@ async function uploadFiles() {
   justify-content: center;
   align-items: center;
   pointer-events: all;
-  /* disable clicks */
 }
 
-/* === 3 Bumping Hearts Loader === */
+/* === Loader container === */
+.loader-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  /* more space between hearts and progress bar */
+}
+
+/* === Hearts Loader === */
 .hearts-loader {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 24px;
+  gap: 18px;
 }
 
 .heart {
+  margin-left: 15px;
   position: relative;
-  width: 40px;
-  height: 36px;
+  width: 28px;
+  /* smaller hearts */
+  height: 25px;
   background-color: #e91e63;
   transform: rotate(-45deg);
-  animation: bump 1.2s infinite ease-in-out;
-  margin-left: 20px;
+  animation: bump 1.8s infinite ease-in-out;
+  /* slower and smoother bump */
 }
 
 .heart::before,
 .heart::after {
   content: '';
   position: absolute;
-  width: 40px;
-  height: 36px;
+  width: 28px;
+  height: 25px;
   background-color: #e91e63;
   border-radius: 50%;
 }
 
 .heart::before {
-  top: -20px;
+  top: -14px;
   left: 0;
 }
 
 .heart::after {
-  left: 20px;
+  left: 14px;
   top: 0;
 }
 
@@ -282,7 +306,7 @@ async function uploadFiles() {
   }
 
   25% {
-    transform: scale(1.2) rotate(-45deg);
+    transform: scale(1.15) rotate(-45deg);
   }
 
   50% {
@@ -290,7 +314,22 @@ async function uploadFiles() {
   }
 
   75% {
-    transform: scale(1.2) rotate(-45deg);
+    transform: scale(1.15) rotate(-45deg);
   }
+}
+
+/* === Progress bar styling === */
+.progress-container {
+  width: 220px;
+  height: 8px;
+  background-color: #f8bbd0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background-color: #e91e63;
+  transition: width 0.4s ease;
 }
 </style>
