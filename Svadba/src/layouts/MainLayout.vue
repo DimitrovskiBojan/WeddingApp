@@ -33,6 +33,11 @@
           <!-- File Selector -->
           <q-card-section class="text-center">
             <q-btn color="pink-6" text-color="white" label="Избери слики" icon="photo_camera" @click="selectFiles" />
+
+            <!-- New Gallery Button -->
+            <q-btn color="pink-6" text-color="white" label="Галерија" icon="photo_library" class="q-mt-sm"
+              @click="goToGallery" />
+
             <input ref="fileInput" type="file" accept="image/*" multiple style="display: none" @change="previewFiles" />
           </q-card-section>
 
@@ -101,6 +106,7 @@
 
 <script setup>
 import { ref } from "vue";
+import { useRouter } from "vue-router";
 
 const successDialog = ref(false);
 const fileInput = ref(null);
@@ -109,17 +115,23 @@ const previews = ref([]);
 const isUploading = ref(false);
 const uploadProgress = ref(0);
 
+const router = useRouter();
+
 // Open file picker
 function selectFiles() {
   fileInput.value.click();
 }
 
-// Generate previews and enforce limit
+// Navigate to gallery
+function goToGallery() {
+  router.push("/gallery");
+}
+
+// Generate previews
 function previewFiles(event) {
   const files = Array.from(event.target.files);
-  const newFiles = files.map(f => f);
-  selectedFiles.value.push(...newFiles);
-  const newPreviews = newFiles.map(f => URL.createObjectURL(f));
+  selectedFiles.value.push(...files);
+  const newPreviews = files.map(f => URL.createObjectURL(f));
   previews.value.push(...newPreviews);
 }
 
@@ -130,7 +142,28 @@ function removeImage(index) {
   previews.value.splice(index, 1);
 }
 
-// Upload only the first 20 images
+// Add image to event backend
+async function addImageToEvent(eventName, imageUrl) {
+  try {
+    const res = await fetch("https://bojan.pythonanywhere.com/add_event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event_name: eventName, ImageURL: imageUrl })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Unknown backend error");
+    }
+    const data = await res.json();
+    console.log("Success:", data.message);
+    return data.message;
+  } catch (error) {
+    console.error("Request failed:", error);
+    throw error;
+  }
+}
+
+// Upload first 20 images
 async function uploadFiles() {
   if (!selectedFiles.value.length) {
     alert("Ве молам, прво изберете некои слики.");
@@ -149,13 +182,9 @@ async function uploadFiles() {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          filenames: fileNames,
-          content_type: filesToUpload[0].type,
-        }),
+        body: JSON.stringify({ filenames: fileNames }),
       }
     );
-
     if (!res.ok) throw new Error("Неуспешно поврзување со серверот");
     const data = await res.json();
 
@@ -166,17 +195,25 @@ async function uploadFiles() {
       const presignedUrl = data.urls[idx]?.upload_url;
       if (!presignedUrl) throw new Error(`Нема URL за ${file.name}`);
 
-      await fetch(presignedUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": file.type,
-          "x-amz-server-side-encryption": "AES256",
-        },
-        body: file,
-      });
+      try {
+        const response = await fetch(presignedUrl, {
+          method: "PUT",
+          headers: { "Content-Type": file.type },
+          body: file,
+        });
 
-      uploadedCount++;
-      uploadProgress.value = (uploadedCount / filesToUpload.length) * 100;
+        if (response.ok) {
+          addImageToEvent("Svadba", file.name);
+        } else {
+          console.error(`Upload failed for ${file.name} with status ${response.status}`);
+        }
+
+        uploadedCount++;
+        uploadProgress.value = (uploadedCount / filesToUpload.length) * 100;
+
+      } catch (error) {
+        console.error(`Error uploading ${file.name}:`, error);
+      }
     }
 
     successDialog.value = true;
@@ -236,7 +273,6 @@ async function uploadFiles() {
   filter: blur(1px);
 }
 
-/* === Full-screen overlay === */
 .overlay {
   position: fixed;
   inset: 0;
@@ -246,19 +282,15 @@ async function uploadFiles() {
   display: flex;
   justify-content: center;
   align-items: center;
-  pointer-events: all;
 }
 
-/* === Loader container === */
 .loader-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 32px;
-  /* more space between hearts and progress bar */
 }
 
-/* === Hearts Loader === */
 .hearts-loader {
   display: flex;
   align-items: center;
@@ -270,12 +302,10 @@ async function uploadFiles() {
   margin-left: 15px;
   position: relative;
   width: 28px;
-  /* smaller hearts */
   height: 25px;
   background-color: #e91e63;
   transform: rotate(-45deg);
   animation: bump 1.8s infinite ease-in-out;
-  /* slower and smoother bump */
 }
 
 .heart::before,
@@ -318,7 +348,6 @@ async function uploadFiles() {
   }
 }
 
-/* === Progress bar styling === */
 .progress-container {
   width: 220px;
   height: 8px;
