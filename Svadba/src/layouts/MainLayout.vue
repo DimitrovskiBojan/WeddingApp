@@ -5,9 +5,6 @@
 
         <!-- Hero Section -->
         <div class="hero q-pa-lg column flex flex-center">
-          <q-avatar size="80px" class="bg-pink-4 text-white shadow-4">
-            <q-icon name="favorite" size="40px" />
-          </q-avatar>
           <h1 class="text-h4 text-bold text-gold q-mt-md wedding-title">
             Валентина & Берк
           </h1>
@@ -34,18 +31,16 @@
           <q-card-section class="text-center">
             <q-btn color="pink-6" text-color="white" label="Избери слики" icon="photo_camera" @click="selectFiles" />
 
-            <!-- New Gallery Button -->
-            <q-btn color="pink-6" text-color="white" label="Галерија" icon="photo_library" class="q-mt-sm"
-              @click="goToGallery" />
+
 
             <input ref="fileInput" type="file" accept="image/*" multiple style="display: none" @change="previewFiles" />
           </q-card-section>
 
           <!-- Preview Grid -->
-          <q-card-section v-if="previews.length > 0">
+          <q-card-section v-if="previews.length">
             <div class="row q-col-gutter-md justify-center">
               <div v-for="(src, index) in previews" :key="index" class="col-4 q-mb-md relative-position preview-img"
-                :class="{ 'dimmed': index >= 20 }">
+                :class="{ dimmed: index >= 20 }">
                 <q-img :src="src" spinner-color="pink-6"
                   style="border-radius: 12px; height: 100px; object-fit: cover;" />
                 <q-btn dense round flat color="negative" icon="close" size="sm" class="remove-btn"
@@ -53,7 +48,6 @@
               </div>
             </div>
 
-            <!-- Send Button -->
             <div class="text-center q-mt-md">
               <q-btn color="pink-6" text-color="white" label="Испрати слики" icon="send" @click="uploadFiles" />
             </div>
@@ -76,161 +70,158 @@
           </q-card>
         </q-dialog>
 
-        <!-- Hearts Spinner + Progress Bar -->
+        <!-- Upload Overlay -->
         <div v-if="isUploading" class="overlay">
           <div class="loader-container column items-center">
             <div class="hearts-loader">
-              <div class="heart" v-for="n in 3" :key="n" :style="{ animationDelay: (n - 1) * 0.3 + 's' }"></div>
+              <div class="heart" v-for="n in 3" :key="n" :style="{ animationDelay: (n - 1) * 0.3 + 's' }" />
             </div>
 
-            <!-- Progress Bar -->
             <div class="progress-container q-mt-md">
               <div class="progress-bar" :style="{ width: uploadProgress + '%' }"></div>
             </div>
-            <div class="text-caption text-pink-8 q-mt-xs">{{ Math.round(uploadProgress) }}%</div>
+            <div class="text-caption text-pink-8 q-mt-xs">
+              {{ Math.round(uploadProgress) }}%
+            </div>
           </div>
         </div>
 
         <!-- Footer -->
         <div class="footer q-mt-xl text-center">
           <p class="text-caption text-grey-6">
-            Со љубов, <br />
+            Со љубов,<br />
             Валентина & Берк 💕
           </p>
         </div>
-
       </q-page>
     </q-page-container>
+    <FooterNavigation />
   </q-layout>
 </template>
 
-<script setup>
-import { ref } from "vue";
-import { useRouter } from "vue-router";
+<script>
 
-const successDialog = ref(false);
-const fileInput = ref(null);
-const selectedFiles = ref([]);
-const previews = ref([]);
-const isUploading = ref(false);
-const uploadProgress = ref(0);
+import FooterNavigation from 'src/components/nav_bar.vue'
 
-const router = useRouter();
+export default {
+  name: "WeddingUploadPage",
+  components: {
+    FooterNavigation
+  },
 
-// Open file picker
-function selectFiles() {
-  fileInput.value.click();
-}
+  mounted() {
+    localStorage.setItem("nav_value", "camera")
+  },
 
-// Navigate to gallery
-function goToGallery() {
-  router.push("/gallery");
-}
+  data() {
+    return {
+      successDialog: false,
+      selectedFiles: [],
+      previews: [],
+      isUploading: false,
+      uploadProgress: 0
+    };
+  },
 
-// Generate previews
-function previewFiles(event) {
-  const files = Array.from(event.target.files);
-  selectedFiles.value.push(...files);
-  const newPreviews = files.map(f => URL.createObjectURL(f));
-  previews.value.push(...newPreviews);
-}
+  methods: {
+    selectFiles() {
+      this.$refs.fileInput.click();
+    },
 
-// Remove an image before upload
-function removeImage(index) {
-  selectedFiles.value.splice(index, 1);
-  URL.revokeObjectURL(previews.value[index]);
-  previews.value.splice(index, 1);
-}
+    goToGallery() {
+      this.$router.push("/gallery");
+    },
 
-// Add image to event backend
-async function addImageToEvent(eventName, imageUrl) {
-  try {
-    const res = await fetch("https://bojan.pythonanywhere.com/add_event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ event_name: eventName, ImageURL: imageUrl })
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || "Unknown backend error");
-    }
-    const data = await res.json();
-    console.log("Success:", data.message);
-    return data.message;
-  } catch (error) {
-    console.error("Request failed:", error);
-    throw error;
-  }
-}
+    previewFiles(event) {
+      const files = Array.from(event.target.files);
+      this.selectedFiles.push(...files);
+      this.previews.push(...files.map(f => URL.createObjectURL(f)));
+    },
 
-// Upload first 20 images
-async function uploadFiles() {
-  if (!selectedFiles.value.length) {
-    alert("Ве молам, прво изберете некои слики.");
-    return;
-  }
+    removeImage(index) {
+      URL.revokeObjectURL(this.previews[index]);
+      this.selectedFiles.splice(index, 1);
+      this.previews.splice(index, 1);
+    },
 
-  const filesToUpload = selectedFiles.value.slice(0, 20);
-  const fileNames = filesToUpload.map(f => f.name);
-
-  isUploading.value = true;
-  uploadProgress.value = 0;
-
-  try {
-    const res = await fetch(
-      "https://mjvwsyxyzc.execute-api.eu-north-1.amazonaws.com/default/svadbaLambdaFunction",
-      {
+    async addImageToEvent(eventName, imageUrl) {
+      const res = await fetch("https://bojan.pythonanywhere.com/add_event", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filenames: fileNames }),
+        body: JSON.stringify({ event_name: eventName, ImageURL: imageUrl })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Backend error");
       }
-    );
-    if (!res.ok) throw new Error("Неуспешно поврзување со серверот");
-    const data = await res.json();
 
-    let uploadedCount = 0;
+      return res.json();
+    },
 
-    for (let idx = 0; idx < filesToUpload.length; idx++) {
-      const file = filesToUpload[idx];
-      const presignedUrl = data.urls[idx]?.upload_url;
-      if (!presignedUrl) throw new Error(`Нема URL за ${file.name}`);
+    async uploadFiles() {
+      if (!this.selectedFiles.length) {
+        alert("Ве молам, прво изберете некои слики.");
+        return;
+      }
+
+      const filesToUpload = this.selectedFiles.slice(0, 20);
+      const fileNames = filesToUpload.map(f => f.name);
+
+      this.isUploading = true;
+      this.uploadProgress = 0;
 
       try {
-        const response = await fetch(presignedUrl, {
-          method: "PUT",
-          headers: { "Content-Type": file.type },
-          body: file,
-        });
+        const res = await fetch(
+          "https://mjvwsyxyzc.execute-api.eu-north-1.amazonaws.com/default/svadbaLambdaFunction",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filenames: fileNames })
+          }
+        );
 
-        if (response.ok) {
-          addImageToEvent("Svadba", file.name);
-        } else {
-          console.error(`Upload failed for ${file.name} with status ${response.status}`);
+        const data = await res.json();
+        let uploaded = 0;
+
+        for (let i = 0; i < filesToUpload.length; i++) {
+          const file = filesToUpload[i];
+          const url = data.urls[i]?.upload_url;
+
+          if (!url) continue;
+
+          const response = await fetch(url, {
+            method: "PUT",
+            headers: { "Content-Type": file.type },
+            body: file
+          });
+
+          if (response.ok) {
+            await this.addImageToEvent("Svadba", file.name);
+          }
+
+          uploaded++;
+          this.uploadProgress = (uploaded / filesToUpload.length) * 100;
         }
 
-        uploadedCount++;
-        uploadProgress.value = (uploadedCount / filesToUpload.length) * 100;
+        this.successDialog = true;
+        this.previews.forEach(URL.revokeObjectURL);
+        this.previews = [];
+        this.selectedFiles = [];
+        this.$refs.fileInput.value = "";
 
-      } catch (error) {
-        console.error(`Error uploading ${file.name}:`, error);
+      } catch (err) {
+        alert("Неуспешно прикачување. Обидете се повторно.");
+        console.error(err);
+      } finally {
+        this.isUploading = false;
+        this.uploadProgress = 0;
       }
     }
-
-    successDialog.value = true;
-    previews.value.forEach(url => URL.revokeObjectURL(url));
-    previews.value = [];
-    selectedFiles.value = [];
-    fileInput.value.value = "";
-
-  } catch (err) {
-    console.error(err);
-    alert("Неуспешно прикачување. Обидете се повторно.");
-  } finally {
-    isUploading.value = false;
-    uploadProgress.value = 0;
   }
-}
+};
 </script>
+
 
 <style scoped>
 .wedding-page {
