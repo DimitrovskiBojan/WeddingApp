@@ -35,7 +35,7 @@
                 </q-list>
             </q-scroll-area>
 
-            <q-img class="absolute-top q-mt-md" src="/src/assets/eventlyy.png">
+            <q-img class="absolute-top q-mt-md" src="/icons/eventlyy.png">
 
             </q-img>
             <q-item clickable v-ripple>
